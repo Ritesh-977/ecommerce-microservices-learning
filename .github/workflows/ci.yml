@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  baseline:
+    name: Baseline checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies (if lockfile/package present)
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci
+          elif [ -f package.json ]; then
+            npm install --no-audit --no-fund
+          else
+            echo "No package.json found; skipping install."
+          fi
+
+      - name: Lint (root placeholder)
+        run: npm run lint --if-present
+
+      - name: Test (root placeholder)
+        run: npm test --if-present
+
+      - name: Build (root placeholder)
+        run: npm run build --if-present
+
+      - name: Validate OpenAPI contracts (when specs exist)
+        run: |
+          shopt -s globstar nullglob
+          specs=(contracts/**/*.yaml contracts/**/*.yml)
+          if [ ${#specs[@]} -eq 0 ]; then
+            echo "No OpenAPI contract files found under contracts/; skipping validation."
+            exit 0
+          fi
+          echo "Found ${#specs[@]} contract file(s); running Redocly lint..."
+          npx --yes @redocly/cli@latest lint "${specs[@]}"
