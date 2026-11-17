@@ -40,8 +40,9 @@ A senior-level, hands-on learning project to build a production-style online sho
 
 - **Foundations:** repo/standards, engineering practices, CI baseline, API/error/idempotency/event conventions, core-flow documentation, and OpenAPI contracts for all planned services.
 - **Catalog service (Phase 2):** implemented with Fastify + TypeScript + Prisma/PostgreSQL, unit/API tests (Vitest), linting, health endpoint, structured logs with correlation IDs, migrations, and seed data.
+- **Cart service (Phase 3):** implemented with Fastify + TypeScript + node-postgres/SQL migrations, unit/API tests (Vitest), linting, health endpoint, correlation IDs, price snapshots, and transactional line-item updates.
 
-Next services: Cart → Inventory → Payment → Order/Checkout → Shipping/Fulfillment.
+Next services: Inventory → Payment → Order/Checkout → Shipping/Fulfillment.
 
 ## Prerequisites
 
@@ -77,11 +78,42 @@ Then check:
 ### Useful commands
 
 ```bash
-npm test                                    # all workspace tests (currently Catalog)
+npm test                                    # all workspace tests (Catalog + Cart)
 npm run lint                                # all workspace lint
 npm run build                               # all workspace builds
 npm run openapi:validate                    # validate contracts with Redocly
 npm run catalog:test                        # Catalog tests only
+npm run cart:test                           # Cart tests only
 ```
 
-> If your machine does not already run PostgreSQL on 5432, you can use 5432 by setting `POSTGRES_PORT=5432` in a root `.env` file (and updating `CATALOG_DATABASE_URL` accordingly).
+## How to run the Cart service locally
+
+Cart calls the Catalog service for product price/currency, so start Catalog first (or use Docker Compose).
+
+```bash
+# 1) If your Postgres volume was created before cart_db was added, create it once:
+docker compose exec postgres psql -U ecommerce -d postgres -c "CREATE DATABASE cart_db;"
+
+# 2) Apply SQL migrations
+cd services/cart
+cp .env.example .env        # or create .env with CART_DATABASE_URL and CATALOG_BASE_URL
+npm run db:migrate
+
+# 3) Run the service (dev mode)
+npm run dev
+```
+
+Then check:
+
+- Health: `http://127.0.0.1:3002/health`
+- Create a cart: `POST http://127.0.0.1:3002/v1/carts` with `{ "sessionId": "demo-session" }`
+- Add an item: `POST http://127.0.0.1:3002/v1/carts/{cartId}/items` with `{ "productId": "prod_001", "quantity": 2 }`
+- Get a cart: `GET http://127.0.0.1:3002/v1/carts/{cartId}`
+
+To run both services in containers:
+
+```bash
+docker compose up -d --build
+```
+
+> If your machine does not already run PostgreSQL on 5432, you can use 5432 by setting `POSTGRES_PORT=5432` in a root `.env` file (and updating `CATALOG_DATABASE_URL`/`CART_DATABASE_URL` accordingly).

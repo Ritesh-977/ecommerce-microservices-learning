@@ -50,6 +50,37 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  cart:
+    build:
+      context: ./services/cart
+    container_name: ecommerce-cart
+    restart: unless-stopped
+    environment:
+      CART_HOST: 0.0.0.0
+      CART_PORT: 3002
+      CART_DATABASE_URL: postgresql://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-change_me_local_only}@postgres:5432/cart_db
+      CATALOG_BASE_URL: http://catalog:3001
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3002/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Message broker will be added in Phase 7 (Kafka or RabbitMQ).
   # Other application services will be added as they are implemented.

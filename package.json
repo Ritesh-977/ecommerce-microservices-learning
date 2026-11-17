@@ -15,7 +15,11 @@
     "catalog:dev": "npm run dev --workspace @ecommerce/catalog",
     "catalog:test": "npm run test --workspace @ecommerce/catalog",
     "catalog:build": "npm run build --workspace @ecommerce/catalog",
-    "catalog:lint": "npm run lint --workspace @ecommerce/catalog"
+    "catalog:lint": "npm run lint --workspace @ecommerce/catalog",
+    "cart:dev": "npm run dev --workspace @ecommerce/cart",
+    "cart:test": "npm run test --workspace @ecommerce/cart",
+    "cart:build": "npm run build --workspace @ecommerce/cart",
+    "cart:lint": "npm run lint --workspace @ecommerce/cart"
   },
   "engines": {
     "node": ">=20"
