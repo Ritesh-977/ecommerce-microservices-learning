@@ -1,0 +1,251 @@
+openapi: 3.0.3
+info:
+  title: Inventory Service API
+  version: 0.1.0
+  description: |
+    Stock levels and reservations. Reservation API is idempotent; holds expire via TTL.
+    This contract is a skeleton and will be completed alongside implementation.
+  license:
+    name: UNLICENSED
+servers:
+  - url: http://localhost:3003
+    description: Local development
+security:
+  - SessionId: []
+tags:
+  - name: Health
+    description: Service health and readiness
+  - name: Inventory
+    description: Stock levels
+  - name: Reservations
+    description: Idempotent stock reservations with TTL
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Service health check
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "500":
+          $ref: "#/components/responses/Error"
+  /v1/inventory/{productId}:
+    get:
+      operationId: getStock
+      summary: Get stock for a product
+      tags: [Inventory]
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+      responses:
+        "200":
+          description: Stock record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stock"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/inventory/reservations:
+    post:
+      operationId: createReservation
+      summary: Reserve stock (with hold/TTL)
+      description: |
+        Atomically checks and reserves stock for the requested line items.
+        Replaying with the same Idempotency-Key returns the same reservation outcome.
+      tags: [Reservations]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationRequest"
+      responses:
+        "201":
+          description: Reservation created (held)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Insufficient stock or conflicting idempotent request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/inventory/reservations/{reservationId}/confirm:
+    post:
+      operationId: confirmReservation
+      summary: Confirm a reservation (decrement stock)
+      tags: [Reservations]
+      parameters:
+        - $ref: "#/components/parameters/ReservationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Reservation confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Reservation expired or already released
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/inventory/reservations/{reservationId}/release:
+    post:
+      operationId: releaseReservation
+      summary: Release a reservation (return held stock)
+      tags: [Reservations]
+      parameters:
+        - $ref: "#/components/parameters/ReservationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Reservation released
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Reservation already confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    SessionId:
+      type: apiKey
+      in: header
+      name: X-Session-Id
+      description: Guest session identifier (authentication may evolve later)
+  parameters:
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: string
+    ReservationId:
+      name: reservationId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Standard error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: inventory
+    Stock:
+      type: object
+      required: [productId, available]
+      properties:
+        productId:
+          type: string
+        available:
+          type: integer
+          minimum: 0
+        reserved:
+          type: integer
+          minimum: 0
+    ReservationLine:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+    CreateReservationRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReservationLine"
+        ttlSeconds:
+          type: integer
+          minimum: 30
+          maximum: 3600
+    Reservation:
+      type: object
+      required: [reservationId, status, items, expiresAt]
+      properties:
+        reservationId:
+          type: string
+        status:
+          type: string
+          enum: [held, confirmed, released, expired]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationLine"
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            correlationId:
+              type: string

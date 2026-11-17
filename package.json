@@ -11,7 +11,7 @@
     "format": "echo \"No format configured at root yet. Run format per service as they are added.\"",
     "test": "echo \"No tests configured at root yet. Run tests per service as they are added.\"",
     "build": "echo \"No build configured at root yet. Run build per service as they are added.\"",
-    "openapi:validate": "node -e \"console.log('No OpenAPI specs to validate yet. Add contracts/**/*.yaml and install @redocly/cli to enable validation.')\""
+    "openapi:validate": "npx --yes @redocly/cli@latest lint \"contracts/**/*.yaml\""
   },
   "engines": {
     "node": ">=20"

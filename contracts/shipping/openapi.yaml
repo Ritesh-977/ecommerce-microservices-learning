@@ -1,0 +1,124 @@
+openapi: 3.0.3
+info:
+  title: Shipping/Fulfillment Service API
+  version: 0.1.0
+  description: |
+    Fulfillment state for placed orders, driven by events and simulated transitions.
+    This contract is a skeleton and will be completed alongside implementation.
+  license:
+    name: UNLICENSED
+servers:
+  - url: http://localhost:3006
+    description: Local development
+security:
+  - SessionId: []
+tags:
+  - name: Fulfillment
+    description: Fulfillment status and history
+  - name: Health
+    description: Service health and readiness
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Service health check
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "500":
+          $ref: "#/components/responses/Error"
+  /v1/fulfillments/{orderId}:
+    get:
+      operationId: getFulfillment
+      summary: Get fulfillment status for an order
+      tags: [Fulfillment]
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: Fulfillment record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Fulfillment"
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    SessionId:
+      type: apiKey
+      in: header
+      name: X-Session-Id
+      description: Guest session identifier (authentication may evolve later)
+  parameters:
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Standard error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: shipping
+    Fulfillment:
+      type: object
+      required: [orderId, status, updatedAt]
+      properties:
+        orderId:
+          type: string
+        status:
+          type: string
+          enum: [placed, packed, shipped, delivered]
+        updatedAt:
+          type: string
+          format: date-time
+        history:
+          type: array
+          items:
+            type: object
+            required: [status, at]
+            properties:
+              status:
+                type: string
+                enum: [placed, packed, shipped, delivered]
+              at:
+                type: string
+                format: date-time
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            correlationId:
+              type: string

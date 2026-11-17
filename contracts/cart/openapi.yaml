@@ -1,0 +1,239 @@
+openapi: 3.0.3
+info:
+  title: Cart Service API
+  version: 0.1.0
+  description: |
+    Session-based cart management. Owns cart data; no shared database with other services.
+    This contract is a skeleton and will be completed alongside implementation.
+  license:
+    name: UNLICENSED
+servers:
+  - url: http://localhost:3002
+    description: Local development
+security:
+  - SessionId: []
+tags:
+  - name: Cart
+    description: Session cart and line items
+  - name: Health
+    description: Service health and readiness
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Service health check
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "500":
+          $ref: "#/components/responses/Error"
+  /v1/carts:
+    post:
+      operationId: createCart
+      summary: Create a cart for a guest session
+      tags: [Cart]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId]
+              properties:
+                sessionId:
+                  type: string
+      responses:
+        "201":
+          description: Cart created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/Error"
+  /v1/carts/{cartId}:
+    get:
+      operationId: getCart
+      summary: Get a cart
+      tags: [Cart]
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/carts/{cartId}/items:
+    post:
+      operationId: addCartItem
+      summary: Add an item to the cart
+      tags: [Cart]
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCartItemRequest"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/carts/{cartId}/items/{itemId}:
+    patch:
+      operationId: updateCartItem
+      summary: Update an item quantity
+      tags: [Cart]
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: removeCartItem
+      summary: Remove an item from the cart
+      tags: [Cart]
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "204":
+          description: Item removed
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    SessionId:
+      type: apiKey
+      in: header
+      name: X-Session-Id
+      description: Guest session identifier (authentication may evolve later)
+  parameters:
+    CartId:
+      name: cartId
+      in: path
+      required: true
+      schema:
+        type: string
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Standard error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: cart
+    AddCartItemRequest:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+    CartItem:
+      type: object
+      required: [itemId, productId, quantity, unitPrice]
+      properties:
+        itemId:
+          type: string
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+    Cart:
+      type: object
+      required: [cartId, sessionId, items]
+      properties:
+        cartId:
+          type: string
+        sessionId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        subtotal:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+          example: USD
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            correlationId:
+              type: string

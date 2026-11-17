@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 0.1.0
+  description: |
+    Simulated payment processing with controllable outcomes (success/failure) for learning.
+    Idempotent: replaying the same Idempotency-Key returns the same logical outcome.
+  license:
+    name: UNLICENSED
+servers:
+  - url: http://localhost:3004
+    description: Local development
+security:
+  - SessionId: []
+tags:
+  - name: Health
+    description: Service health and readiness
+  - name: Payments
+    description: Simulated idempotent payments
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Service health check
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "500":
+          $ref: "#/components/responses/Error"
+  /v1/payments:
+    post:
+      operationId: createPayment
+      summary: Create a simulated payment
+      description: |
+        Initiates a payment for the given amount/context. Simulation controls may be used
+        locally/tests to force success or failure outcomes.
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentRequest"
+      responses:
+        "201":
+          description: Payment created/processed (see status)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Idempotency key reuse conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/payments/{paymentId}:
+    get:
+      operationId: getPayment
+      summary: Get payment status
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+      responses:
+        "200":
+          description: Payment record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    SessionId:
+      type: apiKey
+      in: header
+      name: X-Session-Id
+      description: Guest session identifier (authentication may evolve later)
+  parameters:
+    PaymentId:
+      name: paymentId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Standard error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: payment
+    CreatePaymentRequest:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        currency:
+          type: string
+          example: USD
+        orderReference:
+          type: string
+          description: Provisional cart/checkout/order reference
+        simulateOutcome:
+          type: string
+          enum: [succeed, fail]
+          description: Test/local-only control for simulated outcomes; not for production use
+    Payment:
+      type: object
+      required: [paymentId, status, amount, currency]
+      properties:
+        paymentId:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, failed]
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+        orderReference:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            correlationId:
+              type: string

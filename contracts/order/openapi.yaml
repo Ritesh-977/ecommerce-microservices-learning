@@ -1,0 +1,249 @@
+openapi: 3.0.3
+info:
+  title: Order Service API
+  version: 0.1.0
+  description: |
+    Order lifecycle and (initially) checkout orchestration. Orders are placed only after payment succeeds.
+    This contract is a skeleton and will be completed alongside implementation.
+  license:
+    name: UNLICENSED
+servers:
+  - url: http://localhost:3005
+    description: Local development
+security:
+  - SessionId: []
+tags:
+  - name: Checkout
+    description: Orchestrated checkout flow
+  - name: Health
+    description: Service health and readiness
+  - name: Orders
+    description: Order lifecycle and queries
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Service health check
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "500":
+          $ref: "#/components/responses/Error"
+  /v1/checkout:
+    post:
+      operationId: startCheckout
+      summary: Start checkout for a cart (orchestrated)
+      description: |
+        Validates the cart, reserves inventory, processes payment, places the order only after
+        payment succeeds, and confirms the reservation. Failures release/compensate per policy.
+        Replaying with the same Idempotency-Key returns the same logical outcome.
+      tags: [Checkout]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "201":
+          description: Checkout completed and order placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "402":
+          description: Payment failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Insufficient stock or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/orders:
+    post:
+      operationId: placeOrder
+      summary: Place an order (payment already succeeded)
+      description: Internal/placement endpoint; order placement must be idempotent.
+      tags: [Orders]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceOrderRequest"
+      responses:
+        "201":
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /v1/orders/{orderId}:
+    get:
+      operationId: getOrder
+      summary: Get an order
+      tags: [Orders]
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    SessionId:
+      type: apiKey
+      in: header
+      name: X-Session-Id
+      description: Guest session identifier (authentication may evolve later)
+  parameters:
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Standard error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: order
+    OrderLine:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+    CheckoutRequest:
+      type: object
+      required: [cartId]
+      properties:
+        cartId:
+          type: string
+        sessionId:
+          type: string
+    PlaceOrderRequest:
+      type: object
+      required: [items, amount, currency, paymentId]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderLine"
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+        paymentId:
+          type: string
+          description: Reference to the successful payment
+    Order:
+      type: object
+      required: [orderId, status, items, amount, currency]
+      properties:
+        orderId:
+          type: string
+        status:
+          type: string
+          enum: [placed, fulfilled, cancelled]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLine"
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+        paymentId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    CheckoutResult:
+      type: object
+      required: [order, paymentId]
+      properties:
+        order:
+          $ref: "#/components/schemas/Order"
+        paymentId:
+          type: string
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            correlationId:
+              type: string
