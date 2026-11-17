@@ -36,19 +36,52 @@ A senior-level, hands-on learning project to build a production-style online sho
 - Implementation/learning plan: `docs/superpowers/plans/2026-11-16-event-driven-ecommerce-microservices-plan.md` (reference copy to be added).
 - Architecture decisions: `docs/adr/`
 
-## Getting started (to be expanded)
+## Current status
 
-This repository was initialized as **Task 0 (workspace and version control)**. Next steps from the plan:
-- Define repo structure and engineering standards (Task 1)
-- Add tooling, CI baseline, and API-first workflow (Task 2)
-- Define API/event conventions and contract outlines (Tasks 3–4)
+- **Foundations:** repo/standards, engineering practices, CI baseline, API/error/idempotency/event conventions, core-flow documentation, and OpenAPI contracts for all planned services.
+- **Catalog service (Phase 2):** implemented with Fastify + TypeScript + Prisma/PostgreSQL, unit/API tests (Vitest), linting, health endpoint, structured logs with correlation IDs, migrations, and seed data.
 
-### Prerequisites (planned)
+Next services: Cart → Inventory → Payment → Order/Checkout → Shipping/Fulfillment.
 
-- Node.js (LTS) and npm/pnpm
-- Docker Desktop
+## Prerequisites
+
+- Node.js 20+ (LTS) and npm
+- Docker Desktop (for local PostgreSQL; a message broker comes later)
 - Git
 
-## How to run
+## How to run the Catalog service locally
 
-_TODO: will be documented as services and Docker Compose configuration are added._
+```bash
+# 1) Install workspace dependencies (also generates the Prisma client)
+npm install
+
+# 2) Start local PostgreSQL (host port 5433, avoids clashing with a local Postgres on 5432)
+docker compose up -d postgres
+
+# 3) Apply the Catalog database migration and seed sample products
+cd services/catalog
+cp .env.example .env        # or create .env with CATALOG_DATABASE_URL
+npx prisma migrate deploy
+npm run prisma:seed
+
+# 4) Run the service (dev mode)
+npm run dev
+```
+
+Then check:
+
+- Health: `http://127.0.0.1:3001/health`
+- Products: `http://127.0.0.1:3001/v1/products?limit=5`
+- Product details: `http://127.0.0.1:3001/v1/products/prod_001`
+
+### Useful commands
+
+```bash
+npm test                                    # all workspace tests (currently Catalog)
+npm run lint                                # all workspace lint
+npm run build                               # all workspace builds
+npm run openapi:validate                    # validate contracts with Redocly
+npm run catalog:test                        # Catalog tests only
+```
+
+> If your machine does not already run PostgreSQL on 5432, you can use 5432 by setting `POSTGRES_PORT=5432` in a root `.env` file (and updating `CATALOG_DATABASE_URL` accordingly).

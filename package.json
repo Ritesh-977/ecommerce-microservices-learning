@@ -7,11 +7,15 @@
     "services/*"
   ],
   "scripts": {
-    "lint": "echo \"No lint configured at root yet. Run lint per service as they are added.\"",
-    "format": "echo \"No format configured at root yet. Run format per service as they are added.\"",
-    "test": "echo \"No tests configured at root yet. Run tests per service as they are added.\"",
-    "build": "echo \"No build configured at root yet. Run build per service as they are added.\"",
-    "openapi:validate": "npx --yes @redocly/cli@latest lint \"contracts/**/*.yaml\""
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "echo \"No formatter configured at root yet. Run format per service as they are added.\"",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "openapi:validate": "npx --yes @redocly/cli@latest lint \"contracts/**/*.yaml\"",
+    "catalog:dev": "npm run dev --workspace @ecommerce/catalog",
+    "catalog:test": "npm run test --workspace @ecommerce/catalog",
+    "catalog:build": "npm run build --workspace @ecommerce/catalog",
+    "catalog:lint": "npm run lint --workspace @ecommerce/catalog"
   },
   "engines": {
     "node": ">=20"
