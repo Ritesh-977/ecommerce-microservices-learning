@@ -4,7 +4,11 @@ info:
   version: 0.1.0
   description: |
     Stock levels and reservations. Reservation API is idempotent; holds expire via TTL.
-    This contract is a skeleton and will be completed alongside implementation.
+    Stock is tracked as onHand - reserved. A reservation moves quantity from available to reserved;
+    confirm decrements both onHand and reserved; release returns reserved quantity to available.
+    Idempotency-Key is required for reserve/confirm/release. Replaying the same key with the same
+    request returns the same reservation (and `Idempotency-Replayed: true`); reusing a key with a
+    different request returns 409 IDEMPOTENCY_KEY_REUSE_CONFLICT.
   license:
     name: UNLICENSED
 servers:
@@ -70,12 +74,22 @@ paths:
               $ref: "#/components/schemas/CreateReservationRequest"
       responses:
         "201":
-          description: Reservation created (held)
+          description: Reservation created (held) or replayed idempotently
+          headers:
+            Idempotency-Replayed:
+              description: Present and set to "true" when this is an idempotent replay
+              schema:
+                type: string
+                enum: ["true"]
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Reservation"
         "400":
+          $ref: "#/components/responses/Error"
+        "415":
+          $ref: "#/components/responses/Error"
+        "404":
           $ref: "#/components/responses/Error"
         "409":
           description: Insufficient stock or conflicting idempotent request
@@ -93,11 +107,21 @@ paths:
         - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
-          description: Reservation confirmed
+          description: Reservation confirmed (or already confirmed on replay)
+          headers:
+            Idempotency-Replayed:
+              description: Present and set to "true" when this is an idempotent replay
+              schema:
+                type: string
+                enum: ["true"]
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Reservation"
+        "400":
+          $ref: "#/components/responses/Error"
+        "415":
+          $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
         "409":
@@ -116,11 +140,21 @@ paths:
         - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
-          description: Reservation released
+          description: Reservation released, expired, or already released (idempotent)
+          headers:
+            Idempotency-Replayed:
+              description: Present and set to "true" when this is an idempotent replay
+              schema:
+                type: string
+                enum: ["true"]
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Reservation"
+        "400":
+          $ref: "#/components/responses/Error"
+        "415":
+          $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
         "409":
@@ -181,41 +215,54 @@ components:
           example: inventory
     Stock:
       type: object
-      required: [productId, available]
+      required: [productId, onHand, reserved, available]
       properties:
         productId:
           type: string
-        available:
+        onHand:
           type: integer
           minimum: 0
+          description: Physical units owned by the business.
         reserved:
           type: integer
           minimum: 0
+          description: Units currently held by active reservations.
+        available:
+          type: integer
+          minimum: 0
+          description: onHand - reserved; units that can still be reserved.
     ReservationLine:
       type: object
       required: [productId, quantity]
       properties:
         productId:
           type: string
+          minLength: 1
+          maxLength: 128
         quantity:
           type: integer
           minimum: 1
+          maximum: 1000
     CreateReservationRequest:
       type: object
+      description: Product IDs must be unique within one reservation.
       required: [items]
       properties:
         items:
           type: array
           minItems: 1
+          maxItems: 100
           items:
             $ref: "#/components/schemas/ReservationLine"
         ttlSeconds:
           type: integer
           minimum: 30
           maximum: 3600
+          default: 900
+          description: How long the hold remains active before stock is released automatically.
     Reservation:
       type: object
-      required: [reservationId, status, items, expiresAt]
+      required: [reservationId, status, items, expiresAt, createdAt]
       properties:
         reservationId:
           type: string
@@ -229,6 +276,7 @@ components:
         expiresAt:
           type: string
           format: date-time
+          description: When the hold expires if not confirmed or released. Unchanged by later state transitions.
         createdAt:
           type: string
           format: date-time

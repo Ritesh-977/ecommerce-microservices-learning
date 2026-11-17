@@ -82,6 +82,29 @@ services:
       retries: 5
       start_period: 10s
 
+  inventory:
+    build:
+      context: ./services/inventory
+    container_name: ecommerce-inventory
+    restart: unless-stopped
+    environment:
+      INVENTORY_HOST: 0.0.0.0
+      INVENTORY_PORT: 3003
+      INVENTORY_DATABASE_URL: postgresql://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-change_me_local_only}@postgres:5432/inventory_db
+      INVENTORY_EXPIRY_INTERVAL_MS: ${INVENTORY_EXPIRY_INTERVAL_MS:-5000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3003/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # Message broker will be added in Phase 7 (Kafka or RabbitMQ).
   # Other application services will be added as they are implemented.
 

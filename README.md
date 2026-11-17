@@ -41,8 +41,9 @@ A senior-level, hands-on learning project to build a production-style online sho
 - **Foundations:** repo/standards, engineering practices, CI baseline, API/error/idempotency/event conventions, core-flow documentation, and OpenAPI contracts for all planned services.
 - **Catalog service (Phase 2):** implemented with Fastify + TypeScript + Prisma/PostgreSQL, unit/API tests (Vitest), linting, health endpoint, structured logs with correlation IDs, migrations, and seed data.
 - **Cart service (Phase 3):** implemented with Fastify + TypeScript + node-postgres/SQL migrations, unit/API tests (Vitest), linting, health endpoint, correlation IDs, price snapshots, and transactional line-item updates.
+- **Inventory service (Phase 4):** implemented with Fastify + TypeScript + node-postgres/SQL migrations, unit/API and PostgreSQL concurrency tests, stock levels, TTL reservations, idempotent reserve/confirm/release, row-level locking, and a background expiry sweeper.
 
-Next services: Inventory → Payment → Order/Checkout → Shipping/Fulfillment.
+Next services: Payment → Order/Checkout → Shipping/Fulfillment.
 
 ## Prerequisites
 
@@ -78,12 +79,13 @@ Then check:
 ### Useful commands
 
 ```bash
-npm test                                    # all workspace tests (Catalog + Cart)
+npm test                                    # all workspace tests (Catalog + Cart + Inventory)
 npm run lint                                # all workspace lint
 npm run build                               # all workspace builds
 npm run openapi:validate                    # validate contracts with Redocly
 npm run catalog:test                        # Catalog tests only
 npm run cart:test                           # Cart tests only
+npm run inventory:test                      # Inventory unit/API tests only
 ```
 
 ## How to run the Cart service locally
@@ -110,10 +112,52 @@ Then check:
 - Add an item: `POST http://127.0.0.1:3002/v1/carts/{cartId}/items` with `{ "productId": "prod_001", "quantity": 2 }`
 - Get a cart: `GET http://127.0.0.1:3002/v1/carts/{cartId}`
 
-To run both services in containers:
+## How to run the Inventory service locally
+
+Inventory owns stock keyed by Catalog product IDs. It does not call Catalog at runtime, so start it independently.
+
+```bash
+# 1) If your Postgres volume was created before inventory_db was added, create it once:
+docker compose exec postgres psql -U ecommerce -d postgres -c "CREATE DATABASE inventory_db;"
+
+# 2) Apply SQL migrations and seed stock for the sample catalog products
+cd services/inventory
+cp .env.example .env        # or create .env with INVENTORY_DATABASE_URL
+npm run db:migrate
+npm run db:seed
+
+# 3) Run the service (dev mode)
+npm run dev
+```
+
+Then check:
+
+- Health: `http://127.0.0.1:3003/health`
+- Stock: `GET http://127.0.0.1:3003/v1/inventory/prod_001`
+- Reserve: `POST http://127.0.0.1:3003/v1/inventory/reservations` with an `Idempotency-Key` header and `{ "items": [{ "productId": "prod_001", "quantity": 2 }], "ttlSeconds": 300 }`
+- Confirm: `POST http://127.0.0.1:3003/v1/inventory/reservations/{reservationId}/confirm` with a new `Idempotency-Key`
+- Release: `POST http://127.0.0.1:3003/v1/inventory/reservations/{reservationId}/release` with a new `Idempotency-Key`
+
+Holds expire after the TTL (default 900 seconds). A background sweeper releases expired stock every 5 seconds by default; confirm/release also expire lazily. To run the PostgreSQL concurrency tests, point them at a migrated database:
+
+```bash
+INVENTORY_DATABASE_URL=postgresql://ecommerce:change_me_local_only@127.0.0.1:5433/inventory_db npm run inventory:test:pg
+```
+
+On PowerShell: `$env:INVENTORY_DATABASE_URL='...'; npm run inventory:test:pg`.
+
+> The PostgreSQL test suite truncates the inventory tables before each test. Point it at a dedicated test database, not one containing data you want to keep.
+
+To run all services in containers:
 
 ```bash
 docker compose up -d --build
 ```
 
-> If your machine does not already run PostgreSQL on 5432, you can use 5432 by setting `POSTGRES_PORT=5432` in a root `.env` file (and updating `CATALOG_DATABASE_URL`/`CART_DATABASE_URL` accordingly).
+After the first container start, seed inventory stock once:
+
+```bash
+docker compose exec inventory npm run db:seed
+```
+
+> If your machine does not already run PostgreSQL on 5432, you can use 5432 by setting `POSTGRES_PORT=5432` in a root `.env` file (and updating `CATALOG_DATABASE_URL`/`CART_DATABASE_URL`/`INVENTORY_DATABASE_URL` accordingly).

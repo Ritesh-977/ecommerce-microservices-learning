@@ -19,7 +19,14 @@
     "cart:dev": "npm run dev --workspace @ecommerce/cart",
     "cart:test": "npm run test --workspace @ecommerce/cart",
     "cart:build": "npm run build --workspace @ecommerce/cart",
-    "cart:lint": "npm run lint --workspace @ecommerce/cart"
+    "cart:lint": "npm run lint --workspace @ecommerce/cart",
+    "inventory:dev": "npm run dev --workspace @ecommerce/inventory",
+    "inventory:test": "npm run test --workspace @ecommerce/inventory",
+    "inventory:test:pg": "npm run test:pg --workspace @ecommerce/inventory",
+    "inventory:build": "npm run build --workspace @ecommerce/inventory",
+    "inventory:lint": "npm run lint --workspace @ecommerce/inventory",
+    "inventory:migrate": "npm run db:migrate --workspace @ecommerce/inventory",
+    "inventory:seed": "npm run db:seed --workspace @ecommerce/inventory"
   },
   "engines": {
     "node": ">=20"

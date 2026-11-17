@@ -2,3 +2,4 @@
 -- Each service owns its database; no shared database across services.
 CREATE DATABASE catalog_db;
 CREATE DATABASE cart_db;
+CREATE DATABASE inventory_db;

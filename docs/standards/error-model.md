@@ -24,10 +24,11 @@ All services should return errors in a consistent JSON shape to make client hand
 
 ## HTTP status mapping (guidance)
 
-- `400 Bad Request` — malformed request or validation failures (`VALIDATION_ERROR`)
+- `400 Bad Request` — malformed request (`INVALID_JSON_BODY`) or validation failures (`VALIDATION_ERROR`)
 - `401 Unauthorized` / `403 Forbidden` — authentication/authorization failures (when applicable)
 - `404 Not Found` — resource not found (`NOT_FOUND`)
 - `409 Conflict` — state conflicts, duplicate/idempotency conflicts, or concurrency conflicts (`CONFLICT`, `INSUFFICIENT_STOCK`, etc.)
+- `415 Unsupported Media Type` — request `Content-Type` is not supported (`UNSUPPORTED_MEDIA_TYPE`)
 - `422 Unprocessable Entity` — semantically invalid request (optional alternative to 400 if used consistently)
 - `429 Too Many Requests` — rate limiting (if introduced)
 - `500 Internal Server Error` — unexpected server-side failure (`INTERNAL_ERROR`)
